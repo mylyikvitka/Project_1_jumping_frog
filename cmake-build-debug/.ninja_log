@@ -1,0 +1,24 @@
+# ninja log v6
+6	87	1732994544881114210	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+87	117	1732994544962389697	Project_1_jumping_frog	85d248213372a3a0
+6	50	1732994191504793988	CMakeFiles/Project_1_jumping_frog.dir/main.cpp.o	1907d1523bc8ffdf
+7	236	1733002834736792515	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+236	277	1733002834965503152	Project_1_jumping_frog	85d248213372a3a0
+6	84	1733003025445391436	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+85	112	1733003025523665159	Project_1_jumping_frog	85d248213372a3a0
+6	204	1733003246365926265	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+204	242	1733003246563553673	Project_1_jumping_frog	85d248213372a3a0
+6	207	1733003360876463425	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+208	244	1733003361077962418	Project_1_jumping_frog	85d248213372a3a0
+5	68	1733003496919049846	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+68	99	1733003496982240486	Project_1_jumping_frog	85d248213372a3a0
+6	205	1733003579288404557	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+205	243	1733003579487562935	Project_1_jumping_frog	85d248213372a3a0
+5	83	1733003766757163798	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+83	110	1733003766834569584	Project_1_jumping_frog	85d248213372a3a0
+6	81	1733003844206430257	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+81	110	1733003844281469762	Project_1_jumping_frog	85d248213372a3a0
+4	84	1733003853696410918	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+84	109	1733003853776419859	Project_1_jumping_frog	85d248213372a3a0
+10	86	1733003883326402111	CMakeFiles/Project_1_jumping_frog.dir/fun/fun.cpp.o	2348bca7bbb261e7
+86	115	1733003883402550111	Project_1_jumping_frog	85d248213372a3a0
