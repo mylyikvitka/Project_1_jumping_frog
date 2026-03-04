@@ -2,14 +2,10 @@
 #include "fun/fun.h"
 #include <cstdlib>
 #include <ctime>
-<<<<<<< HEAD
-
-
-=======
 #define HEIGTH 15
 #define WIDTH HEIGTH*2
 #include <unistd.h>
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
+
 
 
 int main() {
@@ -18,7 +14,7 @@ int main() {
     refresh();
     noecho();
     start_color();
-<<<<<<< HEAD
+
     init_pair(1, COLOR_GREEN, COLOR_BLACK);
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
     init_pair(3, COLOR_WHITE, COLOR_BLACK);
@@ -32,7 +28,6 @@ int main() {
     clear();
     WINDOW * window =drawInterface(config);
     frogGame(window);
-=======
     // Start color functionality
     init_pair(1, COLOR_GREEN, COLOR_BLACK);
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
@@ -54,7 +49,6 @@ int main() {
 
 
     // End ncurses mode
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
     endwin();
     return 0;
 }
