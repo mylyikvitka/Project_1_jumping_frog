@@ -696,10 +696,10 @@ void takeTheInput(chtype input,WINDOW* win, Frog& frog, Car cars[], Config& conf
 
   if (input != ERR) {
       if (input == PRINT) {
-          saveGame("/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_save.txt", frog, cars, config,moveCounter,collisionCounter);
+          saveGame("/game_save.txt", frog, cars, config,moveCounter,collisionCounter);
       }
       else if (input == LOAD) {
-          loadGameState(win, "/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_save.txt", frog, cars,moveCounter,collisionCounter);
+          loadGameState(win, "/game_save.txt", frog, cars,moveCounter,collisionCounter);
           wrefresh(win);
           // Reinitialize timer based on loaded state
           drawGameEntities(win, frog, obstacles, config);
@@ -762,7 +762,7 @@ int frogGame(WINDOW* win) {
    int seconds=0;
    int minutes=0;
    int collisionCounter=0;
- Config config = readConfig("/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_config.txt");
+ Config config = readConfig("/game_config.txt");
   Obstacle obstacles[config.num_obstacles];
   Frog frog;
   Car cars[config.num_cars];
