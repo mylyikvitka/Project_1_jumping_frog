@@ -2,511 +2,779 @@
 #include <ncurses.h>
 #include <unistd.h>
 #include <ctime>
-#include<cstdlib>
 #include <cmath>
-#include<stdio.h>
-//actuall 24
-#define HEIGTH 24
-//actuall 48
-#define WIDTH 48
-#define LANE_HEIGTH 4
-#define NUM_LANES 5
-#define NUM_CARS 5
-#define NUM_OBSTACLES 10
+#include <cstdio>
+#include <cstring>
+#define BASE_SCORE 100
+#define MOVE_PENALTY 1
+#define COLLISION_PENALTY 5
+#define TIME_PENALTY 5
+#define TIME_INTERVAL 10
+#define MOVE_CAP 12
+#define MAX_FRAME 20
+#define ENEMY 0
+#define NEUTRAL 1
+#define FRIENDLY 2
+#define SPEED_INTERVAL 100
+#define ESC 27 // ASCII for 'esc'
+#define QUIT 113 // ASCII for 'q'
+#define INTERACT 101
+#define GO_UP 119   // ASCII for 'w'
+#define GO_LEFT 97    // ASCII for 'a'
+#define GO_DOWN 115   // ASCII for 's'
+#define GO_RIGHT 100  // ASCII for 'd'
+#define PRINT 112   // ASCII for 'p'
+#define LOAD 108 // ASCII for 'l'
 
 
-// DRAWING THE BOX SHAPE
-WINDOW* drawInterface() {
-   int maxY, maxX;
-   getmaxyx(stdscr, maxY, maxX);
-   int startY = (maxY / 2) - ((HEIGTH) / 2);
-   int startX = (maxX / 2) - ((WIDTH) / 2);
-
-   // Create the game window
-   WINDOW* window = newwin(HEIGTH, WIDTH, startY, startX);
-   refresh();  // Refresh the main screen before drawing
-   // Draw game box
-    box(window,0,0);
-   wrefresh(window);
+//CONFIGURATION
+Config readConfig(const char *filename) {
+  Config config = {24, 48, 4, 5, 5, 10}; // Default values
 
 
-   mvprintw(1, 0, "Ivanytskyi");
-   mvprintw(2, 1, " Dmytro");
-   mvprintw(3, 1, "s201251");
-   // Adjust position as needed
-   refresh();  // Refresh the main screen to display the signature
+  FILE *file = fopen(filename, "r");
+
+
+  char key[20];
+    int value;
+  char symbol[2];
 
 
 
 
-   // Add signature above the box
-   return window;
+  while (fscanf(file, "%[^=]=%s\n", key, symbol) == 2) {
+      if (strcmp(key, "HEIGHT") == 0) {
+          config.height = atoi(symbol);
+      } else if (strcmp(key, "WIDTH") == 0) {
+          config.width = atoi(symbol);
+      } else if (strcmp(key, "LANE_HEIGHT") == 0) {
+          config.lane_height = atoi(symbol);
+      } else if (strcmp(key, "NUM_LANES") == 0) {
+          config.num_lanes = atoi(symbol);
+      } else if (strcmp(key, "NUM_CARS") == 0) {
+          config.num_cars = atoi(symbol);
+      } else if (strcmp(key, "NUM_OBSTACLES") == 0) {
+          config.num_obstacles = atoi(symbol);
+      }
+      else if (strcmp(key, "SYMBOL_FROG") == 0) {
+          config.symbolFrog = symbol[0];
+      }
+      else if (strcmp(key, "SYMBOL_CAR") == 0) {
+          config.symbolCar = symbol[0];
+      }
+      else if (strcmp(key, "SYMBOL_OBSTACLE") == 0) {
+          config.symbolObstacle = symbol[0];
+      }
+  }
+
+
+
+
+  fclose(file);
+  return config;
 }
 
 
 
 
-chtype getInput(WINDOW* win) {
-   return wgetch(win);
+void saveGame(const char* filename, const Frog& frog, const Car cars[], const Config& config,int moveCounter,int collisionCounter) {
+   FILE* file = fopen(filename, "w");
+   if (!file) {
+       perror("Error opening save file");
+       return;
+   }
+
+   fprintf(file, "FROG_X=%d\n", frog.x);
+   fprintf(file, "FROG_Y=%d\n", frog.y);
+   fprintf(file, "FROG_IN_THE_CAR=%d\n", frog.inTheCar ? 1 : 0);
+
+   for (int i = 0; i < config.num_cars; ++i) {
+       fprintf(file, "CAR_%d_X=%d\n", i, cars[i].x);
+       fprintf(file, "CAR_%d_Y=%d\n", i, cars[i].y);
+       fprintf(file, "CAR_%d_ON_FIELD=%d\n", i, cars[i].on_field ? 1 : 0);
+       fprintf(file, "CAR_%d_TYPE=%d\n", i, cars[i].type);
+       fprintf(file, "CAR_%d_MOVE_INTERVAL=%d\n", i, cars[i].move_interval);
+       fprintf(file, "CAR_%d_HAS_FROG=%d\n", i, cars[i].hasFrog ? 1 : 0);
+   }
+   fprintf(file, "MOVE_COUNTER=%d\n", moveCounter);
+   fprintf(file, "COLLISION_COUNTER=%d\n", collisionCounter);
+
+
+   fclose(file);
 }
 
 
-void refreshBoard(WINDOW* win) {
-   wrefresh(win);
+
+
+//                                                                    DRAWING FUNCTIONS
+WINDOW* drawInterface(const Config& config) {
+ int maxY, maxX;
+ getmaxyx(stdscr, maxY, maxX);
+ int startY = (maxY / 2) - (config.height / 2);
+ int startX = (maxX / 2) - (config.width / 2);
+
+
+ // Create the game window
+ WINDOW* window = newwin(config.height, config.width, startY, startX);
+ refresh();
+ box(window, 0, 0);
+ wrefresh(window);
+ mvprintw(1, 0, "Ivanytskyi");
+ mvprintw(2, 1, " Dmytro");
+ mvprintw(3, 1, "s201251");
+  mvprintw(5, 1, "Status");
+  mvprintw(6, 1, "Active");
+ refresh();
+
+
+ return window;
 }
 
 
-void addAt(WINDOW* win, int y, int x, chtype ch) {
-   mvwaddch(win, y, x, ch);
+
+
+void displayMoveCounter(int moveCounter) {
+  mvprintw(12, 1, "Moves:");
+  mvprintw(13, 1, "%d", moveCounter);
+  refresh();
 }
+
+
+
+
+void drawFrog(WINDOW* win, const Frog& frog, const Config& config) {
+//draw the frog unless it's in the car
+    if (!frog.inTheCar) {
+      wcolor_set(win, 1, NULL);
+      mvwprintw(win, frog.y, frog.x, "%c", config.symbolFrog);
+      wrefresh(win);
+      wcolor_set(win, 0, NULL);
+  }
+}
+
+
 
 
 void clearFrog(WINDOW* win, const Frog& frog) {
-   mvwprintw(win, frog.y, frog.x, "  ");
-   wrefresh(win);
-}
-
-
-void drawFrog(WINDOW* win, const Frog& frog) {
-    if(!frog.inTheCar) {
-        wcolor_set(win, 1, NULL);  // Set color to green (color pair 1)
-        mvwprintw(win, frog.y, frog.x, "@");
-        wrefresh(win);
-        wcolor_set(win, 0, NULL);
-    }// Reset color to default
-}
-
-void drawObstacles(WINDOW* win, const Obstacle obstacles[], int num_obstacles) {
-    for (int i = 0; i < num_obstacles; ++i) {
-        wcolor_set(win, 4, NULL);
-        mvwaddch(win, obstacles[i].y, obstacles[i].x, obstacles[i].symbol);
-        wcolor_set(win, 0, NULL);
-    }
-    wrefresh(win);
-    // Refresh the window to display obstacles
-}
-
-
-
-void drawCar(WINDOW* win, const Car& car) {
-    if (car.hasFrog) {
-        wcolor_set(win, 1, NULL); // Set color to green
-    } else {
-        switch (car.type) {
-            case 0: wcolor_set(win, 2, NULL); break;
-            case 1: wcolor_set(win, 5, NULL); break;
-            case 2: wcolor_set(win, 6, NULL); break;
-        }
-    }
-
-    mvwprintw(win, car.y, car.x, "#");
-    wrefresh(win);
-    wcolor_set(win, 0, NULL); // Reset color to default
-}
-
-
-void initializeCars(Car cars[], int num_cars) {
-
-   for (int i = 0; i < num_cars; ++i) {
-       int pos = i * LANE_HEIGTH + 2;
-
-
-       // Set vertical position of the car
-       cars[i].y = pos + 1;
-
-
-       // Set random horizontal position
-       cars[i].x = WIDTH - 2;  // Off-screen at the start, with random offset
-
-
-       // Assign car symbol
-       cars[i].symbol = '#';
-
-
-       // Set random move interval (speed)
-       cars[i].move_interval = 3 + rand() % 6;
-
-
-       // Set when the car should spawn (randomly staggered)
-       cars[i].spawn_time = rand() % 20;  // Random spawn time between 0 and 19 frames
-
-
-       cars[i].on_field = true;  // Initialize as visible
-       cars[i].respawn_time = 0;
-
-
-       // Initialize other properties
-       cars[i].last_move_frame = 0;
-       cars[i].type = rand() % 2;
-       if (cars[i].type == 1) {
-           cars[i].type = (rand() % 2 == 0) ? 2 : 1;
-       }
-
-       }
-}
-
-
-void changeCarSpeed(Car cars[], int num_cars, int timer_frame_no) {
-    // Randomly select a car to change speed
-    int carIndex = rand() % num_cars;
-
-    // Change its speed every 100 frames
-    if (timer_frame_no % 100 == 0) {
-        int newSpeed = 2 + rand() % 8; // Random new speed
-        cars[carIndex].move_interval = newSpeed;
-    }
-}
-
-bool isCloseToFrog(Car& car, int frogX, int frogY) {
-    // If the frog is in front of the car (frog.x < car.x, i.e., frog is left of the car)
-    if (frogX < car.x) {
-        // Only stop if the frog is close in the y-direction and sufficiently ahead in x-direction
-        return (abs(car.y - frogY) <= 1 && (car.x - frogX) < 8);  // Stop if frog is within y-range and ahead in x
-    }
-    // If the frog is behind the car (frog.x > car.x, i.e., frog is right of the car)
-    else {
-        // Only stop if the frog is close in the y-direction and near in the x-direction
-        return (abs(car.y - frogY) <= 1 && (frogX - car.x) < 2);  // Stop if frog is behind and near in x
-    }
-}
-
-
-void moveCars(WINDOW* win, Car cars[], int num_cars, Timer& timer, Frog frog) {
-   for (int i = 0; i < num_cars; ++i) {
-       // Handle reappearing of cars that are not on the field
-       if (!cars[i].on_field && timer.frame_no >= cars[i].respawn_time) {
-           // Reinitialize the car
-           cars[i].x = WIDTH - 2;  // Reset position to the right side
-           cars[i].y = (i * LANE_HEIGTH + 2) + 1;  // Assign lane position
-           cars[i].symbol = '#';
-           cars[i].move_interval = 3 + rand() % 6;  // Randomize move interval
-           cars[i].spawn_time = rand() % 20;  // Reset spawn time
-           cars[i].type = rand() % 2;
-           if (cars[i].type == 1) {
-               cars[i].type = (rand() % 2 == 0) ? 2 : 1;
-           }// Randomize type
-           cars[i].on_field = true;  // Set car as visible
-           cars[i].last_move_frame = 0;  // Reset movement frame
-       }
-
-
-       // Skip if the car is currently not on the field
-       if (!cars[i].on_field) {
-           continue;
-       }
-
-
-       // Clear previous position of the car (if it has moved)
-       mvwaddch(win, cars[i].y, cars[i].x, ' ');
-       // Check if the car is friendly and close to the frog
-       if ((cars[i].type == 1 ||cars[i].type==2)&& isCloseToFrog(cars[i], frog.x, frog.y)) {
-           // Skip movement for friendly car if it's close to the frog
-           drawCar(win, cars[i]);
-           continue;
-       }
-
-
-
-       if (timer.frame_no - cars[i].last_move_frame >= cars[i].move_interval) {
-           cars[i].x -= 1;  // Move the car left
-           cars[i].last_move_frame = timer.frame_no;
-       }
-
-
-       // Draw the car at its new position
-       drawCar(win, cars[i]);
-
-
-       // Check if the car has reached the left border
-       if (cars[i].x == 1) {
-           // Random chance for the car to disappear
-           if (rand() % 2 == 0) {  // 50% chance to disappear
-               cars[i].on_field = false;
-               cars[i].respawn_time = timer.frame_no + (rand() % 50 + 80);  // Respawn after random frames
-           } else {
-               cars[i].x = WIDTH - 2;  // Otherwise, reset to the right side
-           }
-       }
-   }
+  mvwprintw(win, frog.y, frog.x, "  ");
+  wrefresh(win);
 }
 
 
 
 
-void drawLanes(WINDOW* win) {
-   for (int x = 1; x < WIDTH - 1; ++x) {  // Keep inside box borders
-       wcolor_set(win, 1, NULL);  // Set color to green (color pair 3)
-       mvwaddch(win, 1, x, '.');  // Draw the "win" area in green
-   }
-   wcolor_set(win, 0, NULL);
-   for (int i = 0; i < NUM_LANES; ++i) {  // Draw 5 lanes
-       int y = i * LANE_HEIGTH + 2;  // Calculate the y position for each lane (1-based)
-       for (int x = 1; x < WIDTH - 1; ++x) {  // Keep inside box borders
-           mvwaddch(win, y, x, '-');
-           mvwaddch(win, y + 1, x, '-');  // Each lane is 3 units high
-           mvwaddch(win, y + 2, x, '-');
-       }
-   }
-   wrefresh(win); // Refresh to show lanes on screen
-}
-
-
-void collisionF(Car cars[], Frog& frog, bool &collision) {
-   for (int i = 0; i < NUM_CARS; ++i) {
-       // Check if any car is in the same vertical range as the frog
-       if(cars[i].type==0){
-       if (cars[i].x == frog.x && cars[i].y == frog.y) {
-           // Collision detected, car hits frog
-           collision = true;
-       }
-
-   }
-       // Check if car is about to "pass" over the frog
-
-
-   }
-}
-
-
-void endGame(WINDOW *win,bool collision,bool victory, bool &gameOver, chtype input) {
-
-
-    if(victory==true) {
-       mvwprintw(win, HEIGTH / 2, WIDTH / 2 - 5, "YOU WON!");
-       wrefresh(win);
-       usleep(2000000);
-       gameOver = true;
-   }
-
-
-    if (input=='q'||input=='Q') {
-       mvwprintw(win, HEIGTH / 2, WIDTH / 2 - 5, "GAME OVER!");
-       wrefresh(win);
-       usleep(2000000);
-       gameOver = true;
-   }
-
-
-  if (collision==true){
-       mvwprintw(win, HEIGTH / 2, WIDTH / 2 - 5, "GAME OVER!");
-       wrefresh(win);
-       usleep(2000000);
-       gameOver = true;
-   }
 
 
 
 
-}
-
-
-bool isObstacleAt(int x, int y, const Obstacle obstacles[], int num_obstacles, const Car cars[], int num_cars) {
-    // Check if there's an obstacle in the obstacles array
-    for (int i = 0; i < num_obstacles; ++i) {
-        if (obstacles[i].x == x && obstacles[i].y == y) {
-            return true;  // There is an obstacle at the given position
-        }
-    }
-
-    // Check if a car is at the given position and its type is 1 or 2 (obstacle)
-    for (int i = 0; i < num_cars; ++i) {
-        if (cars[i].x == x && cars[i].y == y && (cars[i].type == 1 || cars[i].type == 2)) {
-            return true;  // There is a car (type 1 or 2) at the given position, treat as an obstacle
-        }
-    }
-
-    return false;  // No obstacle at the given position
-}
-
-void hopInCar(WINDOW* win, Frog& frog, chtype input, Car cars[], int num_cars) {
-    // Check if the input is 'e'
-    if (input == 'e') {
-        for (int i = 0; i < num_cars; ++i) {
-            // Check if the car is type 2 and the frog is close enough
-            if (cars[i].type == 2 && abs(cars[i].x - frog.x) <= 1 && abs(cars[i].y - frog.y) <= 1) {
-                // Update frog position to the car's position
-                frog.x = WIDTH/2;
-                frog.y = HEIGTH-2;
-
-                // Mark the car as occupied
-                cars[i].hasFrog = true;
-                frog.inTheCar=true;
-
-                // Redraw the car
-                drawCar(win, cars[i]);
-
-                // Erase the frog from the screen (optional since it's now "inside" the car)
-                mvwaddch(win, frog.y, frog.x, ' ');
-
-                return; // Stop checking other cars
-            }
-        }
-    }
-}
-
-
-void frogMove(WINDOW* win, Frog& frog, chtype input, bool &victory, const Obstacle obstacles[], int num_obstacles,const Car cars[]) {
-    clearFrog(win, frog);  // Use the Frog struct directly
-
-    // Temporary coordinates for the potential new position
-    int new_x = frog.x;
-    int new_y = frog.y;
-
-    if (input == 'w' && frog.y > 1) {
-        new_y--;
-        if (new_y == 1) {
-            victory = true;
-        }
-    } else if (input == 'a' && frog.x > 1) {
-        new_x--;
-    } else if (input == 's' && frog.y < HEIGTH - 2) {
-        new_y++;
-    } else if (input == 'd' && frog.x < WIDTH - 3) {
-        new_x++;
-    }
-
-    // Check if the new position is free of obstacles
-    if (!isObstacleAt(new_x, new_y, obstacles, num_obstacles,cars,NUM_CARS)) {
-        frog.x = new_x;
-        frog.y = new_y;
-    }
-
-    drawFrog(win, frog);  // Use the Frog struct directly
+void drawObstacles(WINDOW* win, const Obstacle obstacles[], const Config& config) {
+  for (int i = 0; i < config.num_obstacles; ++i) {
+      wcolor_set(win, 4, NULL);
+      mvwaddch(win, obstacles[i].y, obstacles[i].x, obstacles[i].symbol);
+      wcolor_set(win, 0, NULL);
+  }
+  wrefresh(win);
 }
 
 
 
-void displayTimer(WINDOW* win, const Timer& timer) {
-   // Print the timer information on the screen
-   // Position it somewhere outside the main game box if possible
-   mvprintw(5, 0, "Time: %d", timer.frame_no);// Adjust position as needed
-   refresh();
+
+
+
+void drawCar(WINDOW* win, const Car& car, const Config& config) {
+ if (car.hasFrog) {
+     wcolor_set(win, 1, NULL); // Set color to green (occupied)
+ } else {
+     switch (car.type) {
+         case ENEMY: wcolor_set(win, 2, NULL); break;
+         case NEUTRAL: wcolor_set(win, 5, NULL); break;
+         case FRIENDLY: wcolor_set(win, 6, NULL); break;
+     }
+ }
+ mvwprintw(win, car.y, car.x, "%c", config.symbolCar);
+ wrefresh(win);
+ wcolor_set(win, 0, NULL); // Reset color to default
 }
+
+
+
+
+void drawLanes(WINDOW* win, const Config& config) {
+//drawing end game field
+   for (int x = 1; x < config.width - 1; ++x) {
+      wcolor_set(win, 1, NULL);
+      mvwaddch(win, 1, x, '.');
+  }
+  wcolor_set(win, 0, NULL);
+   //drawing lanes
+  for (int i = 0; i < config.num_lanes; ++i) {
+      int y = i * config.lane_height + 3;
+      for (int x = 1; x < config.width - 1; ++x) {
+          mvwaddch(win, y, x, '-');
+          mvwaddch(win, y + 1, x, '-');
+          mvwaddch(win, y + 2, x, '-');
+      }
+  }
+  wrefresh(win);
+}
+
 
 
 
 void drawBorders(WINDOW* win) {
-    // Draw the borders (top, bottom, left, right)
-    box(win, 0, 0);  // Draw a box around the window (using default characters)
-}
-void displayRealTimeTimer(WINDOW* win, clock_t start_time) {
-    // Calculate the elapsed time in seconds
-    double elapsed_seconds = double(clock() - start_time) / CLOCKS_PER_SEC;
-
-    // Calculate minutes and whole seconds
-    int minutes = static_cast<int>(elapsed_seconds) / 60; // Full minutes
-    int seconds = static_cast<int>(elapsed_seconds) % 60; // Remainder as seconds
-
-    // Print the elapsed time on the screen in minutes:seconds format
-    mvprintw(9, 0, "Time: %d:%02d", minutes, seconds); // Ensure two digits for seconds
-    refresh();
+  box(win, 0, 0);
 }
 
-void initializeObstacles(Obstacle obstacles[], int num_obstacles, int num_lanes, int lane_height, Car car[]) {
-    for (int i = 0; i < num_obstacles; ++i) {
-        bool validPosition = false;
 
-        // Use the original idea for 'pos'
-        obstacles[i].x = 2 + rand() % (WIDTH - 4);
+void drawGameEntities(WINDOW* win, const Frog& frog, const Obstacle obstacles[], const Config& config) {
+  drawLanes(win, config);
+  drawFrog(win, frog, config);
+  drawObstacles(win, obstacles, config);
+}
+void displayRealTimeTimer(time_t start_time, int& minutes, int& seconds) {
+  time_t current_time;
+  time(&current_time);  // Get the current time as a time_t value
 
-        while (!validPosition) {
-            // Randomize y position for the obstacle
-            obstacles[i].y = 2 + rand() % (HEIGTH - 4);
+  // Calculate the elapsed time in seconds
+  int elapsed_seconds = static_cast<int>(difftime(current_time, start_time));
 
-            // Check that the obstacle does not overlap with any car's y position
-            validPosition = true;  // Assume the position is valid
+  minutes = elapsed_seconds / 60;
+  seconds = elapsed_seconds % 60;
 
-            for (int j = 0; j < NUM_CARS; j++) {
-                if (obstacles[i].y == car[j].y) {
-                    validPosition = false;  // If it matches any car's y position, set invalid
-                    break;  // No need to check further, as we've found an overlap
-                }
-            }
-        }
+  mvprintw(9, 0, "Time: %d:%02d", minutes, seconds);
+  refresh();
+}
 
-        obstacles[i].symbol = '*';  // Use '*' as the obstacle symbol
+
+//                                                          INITIALIZATION
+
+
+void initializeCars(Car cars[], const Config& config) {
+
+for (int i = 0; i < config.num_cars; ++i) {
+    int pos = i * config.lane_height + 3;
+    cars[i].y = pos + 1;
+    cars[i].x = config.width - 2;  // Off-screen at the start
+    cars[i].symbol = config.symbolCar;
+    cars[i].move_interval = 3 + rand() % 6;
+    cars[i].spawn_time = rand() % MAX_FRAME;  // Random spawn time between 0 and 19 frames
+    cars[i].on_field = true;
+    cars[i].respawn_time = 0;
+
+
+    cars[i].last_move_frame = 0;
+    cars[i].type = rand() % 2;
+    //non-enemy car type
+    if (cars[i].type == NEUTRAL) {
+        cars[i].type = (rand() % 2 == 0) ? FRIENDLY : NEUTRAL;
+    }
     }
 }
 
 
 
+
+
+
+
+
+void reinitializeCar(Car& car, int lane_index, const Config& config) {
+  car.x = config.width - 2;
+  car.y = (lane_index * config.lane_height + 3) + 1;
+  car.symbol = config.symbolCar;
+  car.move_interval = 3 + rand() % 6;
+  car.spawn_time = rand() % MAX_FRAME;
+  car.type = rand() % 2;
+  if (car.type == NEUTRAL) {
+      car.type = (rand() % 2 == 0) ? FRIENDLY : NEUTRAL;
+  }
+  car.on_field = true;
+  car.last_move_frame = 0;
+}
+
+
+
+
+void initializeObstacles(Obstacle obstacles[], Car car[], const Config& config) {
+
+    for (int i = 0; i < config.num_obstacles; ++i) {
+      bool validPosition = false;
+      obstacles[i].x = 2 + rand() % (config.width - 4);
+        //trying to get a proper position for an obstacle
+      while (!validPosition) {
+          obstacles[i].y = 3 + rand() % (config.height - 4);
+          validPosition = true;
+          for (int j = 0; j < config.num_cars; j++) {
+              //if the obstacle is on the car line or frog initial position it needs to be changed
+              if (obstacles[i].y == car[j].y) {
+                  validPosition = false;
+                  break;
+              }
+              if ((obstacles[i].x ==config.width / 2)&&(obstacles[i].y==config.height - 2) ) {
+                  validPosition = false;
+                  break;
+              }
+          }
+      }
+      obstacles[i].symbol = config.symbolObstacle;
+  }
+}
+void initializeGameEntities(Frog& frog, Car cars[], Obstacle obstacles[], Timer& timer, Config& config) {
+  frog = {config.width / 2, config.height - 2, config.symbolObstacle};
+  initializeCars(cars, config);
+  initializeObstacles(obstacles, cars, config);
+  timer = {100, 0.0f, 0};
+}
+//                                                               HANDLING CAR MOVEMENT
+void changeCarSpeed(Car cars[], const Config& config, int timer_frame_no) {
+ int carIndex = rand() % config.num_cars;
+ // Change its speed every 100 frames
+ if (timer_frame_no % SPEED_INTERVAL == 0) {
+     int newSpeed = 2 + rand() % 8;
+     cars[carIndex].move_interval = newSpeed;
+ }
+}
+
+
+bool isCloseToFrog(Car& car, Frog& frog) {
+ //check if the frog is in the front
+ if (frog.x < car.x) {
+
+
+     return (abs(car.y - frog.y) <= 1 && (car.x - frog.x) < 8);
+ }
+   else {
+     return (abs(car.y - frog.y) <= 1 && (frog.x - car.x) < 2);
+ }
+}
+
+
+
+
+void moveCars(WINDOW* win, Car cars[], Timer& timer, Frog& frog, const Config& config) {
+for (int i = 0; i < config.num_cars; ++i) {
+   //respawn the car if needed
+    if (!cars[i].on_field && timer.frame_no >= cars[i].respawn_time) {
+        reinitializeCar(cars[i], i, config);
+    }
+    if (!cars[i].on_field) {
+        continue;
+    }
+
+
+    mvwaddch(win, cars[i].y, cars[i].x, ' ');
+    //stop the car if by the close and has sufficient type
+    if ((cars[i].type == NEUTRAL ||cars[i].type==FRIENDLY)&& isCloseToFrog(cars[i], frog)) {
+        drawCar(win, cars[i],config);
+        continue;
+    }
+
+
+
+//move the cars to the left
+    if (timer.frame_no - cars[i].last_move_frame >= cars[i].move_interval) {
+        cars[i].x -= 1;
+        cars[i].last_move_frame = timer.frame_no;
+    }
+    drawCar(win, cars[i],config);
+
+//handle cars reaching the end
+    if (cars[i].x == 1) {
+        if (cars[i].hasFrog) {
+            cars[i].hasFrog = false;
+            frog.x = cars[i].x;
+            frog.y = cars[i].y-1;
+            frog.inTheCar=false;
+        }
+        // Random chance for the car to disappear
+        if (rand() % 2 == 0) {
+            cars[i].on_field = false;
+            cars[i].respawn_time = timer.frame_no + (rand() % 50 + 80);
+        } else {
+            cars[i].x = config.width - 2;  //reset to the right side
+        }
+    }
+}
+}
+void collisionF(Car cars[], Frog& frog, bool &collision,int& collisionCounter,const Config& config) {
+for (int i = 0; i < config.num_cars; ++i) {
+    if(cars[i].type==ENEMY){
+    if (cars[i].x == frog.x && cars[i].y == frog.y) {
+        collisionCounter++;
+        collision = true;
+    }
+}
+}
+}
+
+
+int calculateScore(int moveCounter, int collisionCounter, int minutes, int seconds, int& score) {
+
+   int totalElapsedSeconds = (minutes * 60) + seconds;
+
+   int timePenalty = (totalElapsedSeconds / TIME_INTERVAL) * TIME_PENALTY;
+
+   int movePenalty = 0;
+   if (moveCounter > MOVE_CAP) {
+       movePenalty = (moveCounter - MOVE_CAP) * MOVE_PENALTY;
+   }
+
+   score = BASE_SCORE - movePenalty - (collisionCounter * COLLISION_PENALTY) - timePenalty;
+
+
+   // Ensure score is non-negative
+   return (score > 0) ? score : 0;
+}
+
+
+
+
+void waitToQuit(WINDOW *win, bool &gameOver, int moveCounter, int collisionCounter, int minutes, int seconds,const Config& config,
+    bool fail=false) {
+    int score = 0;
+    int finalScore=0;
+    if(fail) {
+        finalScore=0;
+    }
+    else{
+    finalScore = calculateScore(moveCounter, collisionCounter, minutes, seconds, score);
+    }
+
+
+
+   mvwprintw(win, (config.height / 2)+1, config.width / 2 - 5, "Total Score: %d", finalScore);
+   wrefresh(win);
+
+
+   // wait for the 'q' to quit
+   chtype resumeInput;
+   do {
+       resumeInput = wgetch(win);
+   } while (resumeInput != QUIT);
+
+
+   gameOver = true;
+}
+
+
+void endGame(WINDOW *win,bool collision,bool victory, bool &gameOver, chtype input, const Config& config,int& moveCounter,
+   int& collisionCounter, int& minutes,int& seconds) {
+//player reached the end
+    if(victory==true) {
+     mvwprintw(win, config.height / 2, config.width / 2 - 5, "YOU WON!");
+    wrefresh(win);
+     waitToQuit(win, gameOver,moveCounter,collisionCounter,minutes,seconds,config);
+}
+ if (input==QUIT) {
+    mvwprintw(win, config.height / 2, config.width / 2 - 5, "GAME OVER!");
+    wrefresh(win);
+     wrefresh(win);
+     waitToQuit(win, gameOver,moveCounter,collisionCounter,minutes,seconds,config,true);
+
+
+}
+    //player got hit by a car
+if (collision==true){
+    mvwprintw(win, config.height / 2, config.width / 2 - 5, "GAME OVER!");
+    wrefresh(win);
+   waitToQuit(win, gameOver,moveCounter,collisionCounter,minutes,seconds,config,true);
+}
+}
+
+
+
+
+bool isObstacleAt(int x, int y, const Obstacle obstacles[],const Config& config, const Car cars[],int& collisionCounter) {
+ for (int i = 0; i < config.num_obstacles; ++i) {
+     if (obstacles[i].x == x && obstacles[i].y == y) {
+         collisionCounter++;
+         return true;
+     }
+ }
+   //treat cars as the obstacles too
+ for (int i = 0; i < config.num_cars; ++i) {
+     if (cars[i].x == x && cars[i].y == y && (cars[i].type == NEUTRAL || cars[i].type == FRIENDLY)) {
+         collisionCounter++;
+         return true;
+
+
+     }
+ }
+ return false;
+}
+
+
+
+
+
+
+void hopInCar(WINDOW* win, Frog& frog, chtype input, Car cars[], const Config& config,const Obstacle obstacles[],int& collisionCounter) {
+
+
+     if (input == INTERACT) {
+         //hop out
+         if (frog.inTheCar) {
+             for (int i = 0; i < config.num_cars; ++i) {
+                 if (cars[i].hasFrog && cars[i].type == FRIENDLY) {
+                     int targetX = cars[i].x;
+                     int targetY = cars[i].y - 1; // The position where the frog will hop out
+
+                     // use the isObstacleAt function to check if there is an obstacle
+                     if (isObstacleAt(targetX, targetY, obstacles, config, cars, collisionCounter)) {
+                         mvwprintw(win, config.height / 2, config.width / 2 - 10, "Can't exit! Obstacle ahead.");
+                         wrefresh(win);
+                         return;
+                     }
+
+                     cars[i].hasFrog = false;
+                     frog.inTheCar = false;
+                     frog.x = cars[i].x;
+                     frog.y = cars[i].y-1;
+                     clearFrog(win, frog);
+                     break;
+                 }
+             }
+
+
+
+
+         }
+         //hop in
+         else {
+             for (int i = 0; i < config.num_cars; ++i) {
+                 if (cars[i].type == FRIENDLY && abs(cars[i].x - frog.x) <= 2 && abs(cars[i].y - frog.y) <= 1) {
+                     //frog is set to start point and is unable to move
+                     frog.x = config.width/2;
+                     frog.y = config.height-2;
+                     cars[i].hasFrog = true;
+                     frog.inTheCar = true;
+                     clearFrog(win, frog);
+                     drawCar(win, cars[i],config);
+                     break;// Stop checking other cars
+                 }
+             }
+         }
+     }
+}
+
+
+
+
+
+
+
+
+void frogMove(WINDOW* win, Frog& frog, chtype input, bool &victory, const Obstacle obstacles[], const Config& config,const Car cars[], int& moveCounter,int& collisionCounter) {
+  clock_t current_time = clock();
+  double elapsed_time = double(current_time - frog.last_move_time) / CLOCKS_PER_SEC;
+
+
+
+
+  if (elapsed_time < 0.01) {  // check if at least 1 second has passed
+      return;
+  }
+  clearFrog(win, frog);
+
+
+  frog.last_move_time = current_time;
+ if(!frog.inTheCar) {
+     int new_x = frog.x;
+     int new_y = frog.y;
+     if (input == GO_UP && frog.y > 1) {
+         new_y-=2;
+
+
+
+
+         if (new_y <= 1) {
+             clearFrog(win,frog);
+             victory = true;
+         }
+     } else if (input == GO_LEFT && frog.x > 2) {
+         new_x-=2;
+
+
+     } else if (input == GO_DOWN && frog.y < config.height - 2) {
+         new_y+=2;
+
+     } else if (input == GO_RIGHT && frog.x < config.width - 3) {
+         new_x+=2;
+     }
+
+     // check if the new position is free of obstacles
+     if (new_x != frog.x || new_y != frog.y) {
+         if (!isObstacleAt(new_x, new_y, obstacles, config, cars,collisionCounter)) {
+             frog.x = new_x;
+             frog.y = new_y;
+             ++moveCounter;
+         }
+     }
+ }
+
+ drawFrog(win, frog,config);
+}
+void loadGameState(WINDOW* win, const char* filename, Frog& frog, Car cars[], int& moveCounter,int& collisionCounter) {
+   FILE* file = fopen(filename, "r");
+   char key[30];
+   char value[20];
+   clearFrog(win, frog);
+
+   while (fscanf(file, "%[^=]=%s\n", key, value) == 2) {
+       if (strcmp(key, "FROG_X") == 0) {
+           frog.x = atoi(value);
+       } else if (strcmp(key, "FROG_Y") == 0) {
+           frog.y = atoi(value);
+       } else if (strcmp(key, "FROG_IN_THE_CAR") == 0) {
+           frog.inTheCar = atoi(value) != 0;
+       } else if (strcmp(key, "MOVE_COUNTER") == 0) {
+           moveCounter = atoi(value);
+       }
+       else if (strcmp(key, "COLLISION_COUNTER") == 0) {
+           collisionCounter = atoi(value);
+       }
+
+
+       else if (strncmp(key, "CAR", 3) == 0) {
+           int i = atoi(key + 4);
+           if (strstr(key, "_X")) {
+               cars[i].x = atoi(value);
+           } else if (strstr(key, "_Y")) {
+               cars[i].y = atoi(value);
+           } else if (strstr(key, "_ON_FIELD")) {
+               cars[i].on_field = atoi(value) != 0;
+           } else if (strstr(key, "_TYPE")) {
+               cars[i].type = atoi(value);
+           } else if (strstr(key, "_MOVE_INTERVAL")) {
+               cars[i].move_interval = atoi(value);
+           } else if (strstr(key, "_HAS_FROG")) {
+               cars[i].hasFrog = atoi(value) != 0;
+           }
+       }
+   }
+
+
+   fclose(file);
+}
+
+
+void displayCollisionCount(int collisionCount) {
+   mvprintw(14, 1, "Collisions:");
+   mvprintw(15, 1, "%d", collisionCount);
+   refresh();
+}
+
+
+void pauseGame(WINDOW *win, const Config& config, Car cars[]) {
+ for (int i = 0; i <config.num_cars; ++i) {
+     drawCar(win, cars[i],config);
+ }
+  mvwprintw(win, config.height / 2, config.width / 2 - 5, "GAME PAUSED");
+  mvprintw(6, 1, "Paused");
+  refresh();
+  wrefresh(win);
+
+  while (true) {
+      int ch = getch();
+      if (ch == ESC) {
+          mvwprintw(win, config.height / 2, config.width / 2 - 5, "           "); // Clear text
+          wrefresh(win);
+          mvprintw(6, 1, "Active");
+          refresh();
+          break;
+      }
+  }
+}
+
+
+
+
+
+
+void takeTheInput(chtype input,WINDOW* win, Frog& frog, Car cars[], Config& config, Timer& timer, bool& victory, bool& collision, const Obstacle obstacles[],int& moveCounter,int minute, int second,time_t start_time,int& collisionCounter) {
+
+
+  if (input != ERR) {
+      if (input == PRINT) {
+          saveGame("/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_save.txt", frog, cars, config,moveCounter,collisionCounter);
+      }
+      else if (input == LOAD) {
+          loadGameState(win, "/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_save.txt", frog, cars,moveCounter,collisionCounter);
+          wrefresh(win);
+          // Reinitialize timer based on loaded state
+          drawGameEntities(win, frog, obstacles, config);
+      }
+      else if (input == ESC) {
+          pauseGame(win,config,cars);
+      }
+      frogMove(win, frog, input, victory, obstacles, config,cars,moveCounter,collisionCounter);
+      hopInCar(win, frog, input, cars, config,obstacles,collisionCounter);
+      collisionF(cars, frog, collision,collisionCounter,config);
+  }
+}
+void runGameLoop(WINDOW* win, Frog& frog, Car cars[], Obstacle obstacles[], Config& config, Timer& timer, bool& gameOver, bool& victory, bool& collision, time_t start_time, int& moveCounter, int& minute, int& second,int& collisionCounter,int& minutes,int& seconds) {
+  while (!gameOver) {
+      drawGameEntities(win, frog, obstacles, config);
+
+
+      chtype input = wgetch(win);
+
+
+      takeTheInput(input, win, frog, cars, config, timer, victory, collision, obstacles,moveCounter,minute,second,start_time,collisionCounter);
+
+
+      moveCars(win, cars, timer, frog, config);
+      changeCarSpeed(cars, config, timer.frame_no);
+
+
+      collisionF(cars, frog, collision,collisionCounter,config);
+
+
+      displayMoveCounter(moveCounter);
+      displayRealTimeTimer(start_time,minutes, seconds);
+      displayCollisionCount(collisionCounter);
+      endGame(win, collision, victory, gameOver, input, config,moveCounter,collisionCounter,minutes,seconds);
+
+
+
+
+      timer.frame_no++;
+      timer.pass_time += timer.frame_time / 1000.0f;
+
+
+      // delay for 10 milliseconds
+      usleep(10000);
+
+
+      drawBorders(win);
+      wrefresh(win);
+  }
+}
 
 
 
 
 int frogGame(WINDOW* win) {
-    bool gameOver = false;
-    bool victory = false;
-    bool collision = false;
-    bool inCar=false;
-    Obstacle obstacles[NUM_OBSTACLES];
-    Frog frog = {WIDTH / 2, HEIGTH - 2, '@'};
-    Car cars[NUM_CARS];  // Array of cars
-    Timer timer = {100, 0.0f, 0};
-    initializeCars(cars, NUM_CARS);
-    initializeObstacles(obstacles, NUM_OBSTACLES, NUM_LANES, LANE_HEIGTH, cars);
-    clock_t start_time = clock();
+ bool gameOver = false;
+ bool victory = false;
+ bool collision = false;
+  int moveCounter=0;
+   int seconds=0;
+   int minutes=0;
+   int collisionCounter=0;
+ Config config = readConfig("/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_config.txt");
+  Obstacle obstacles[config.num_obstacles];
+  Frog frog;
+  Car cars[config.num_cars];
+  Timer timer;
 
-    drawLanes(win);  // Draw lanes initially
-    drawFrog(win, frog);
-    drawObstacles(win, obstacles, NUM_OBSTACLES);// Draw frog initially
-
-    // Enable non-blocking input
-    nodelay(win, TRUE);  // Non-blocking input (no wait for key press)
-
-    while (!gameOver) {
-        // Clear the window for the new frame (without erasing borders)
-       // Clears the window content
-
-        // Redraw the borders of the game window
-
-        // Redraw lanes and frog
-        drawLanes(win);
-
-        drawFrog(win, frog);
-        drawObstacles(win, obstacles, NUM_OBSTACLES);// Draw frog initially
-
-
-
-
-        // Get input (non-blocking)
-        chtype input = getInput(win);
-
-        // Handle input if available
-        if (input != ERR) {
-            frogMove(win, frog, input, victory, obstacles, NUM_OBSTACLES,cars);
-            hopInCar(win, frog, input, cars, NUM_CARS);
-
-
-            // Move frog based on input
-            collisionF(cars, frog, collision);
-            // Check if frog collides with a car
-        }
-
-        // Move and draw cars
-        moveCars(win, cars, NUM_CARS, timer,frog);
-        changeCarSpeed(cars, NUM_CARS, timer.frame_no);// Move cars and draw them
-
-        // Check collision and handle game over/victory
-        collisionF(cars, frog, collision);
-        endGame(win, collision, victory, gameOver, input);
-
-        // Display timer
-        displayRealTimeTimer(win, start_time);
-
-
-        // Update frame number and pass time
-        timer.frame_no++;
-        timer.pass_time += timer.frame_time / 1000.0f;
-
-        // Small delay to smooth the game's speed
-        usleep(10000);  // Delay for 10 milliseconds
-
-        drawBorders(win);
-        // Refresh the screen to show the updated positions
-        wrefresh(win);
-    }
-
-    return gameOver;
+  initializeGameEntities(frog, cars, obstacles, timer, config);
+  time_t start_time = time(NULL);
+  drawGameEntities(win, frog, obstacles, config);
+ nodelay(win, TRUE);  // non-blocking input (no wait for key press)
+  runGameLoop(win, frog, cars, obstacles, config, timer, gameOver, victory, collision, start_time,moveCounter,minutes,seconds,collisionCounter,minutes,seconds);
+ return gameOver;
 }
+
+
 

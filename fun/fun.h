@@ -6,7 +6,8 @@
 #ifndef FUN_H
 #define FUN_H
 #include <ncurses.h>
-#include <unistd.h>
+#include <ctime>
+
 
 
 struct Frog {
@@ -14,6 +15,8 @@ struct Frog {
     int y;
     chtype symbol;
     bool inTheCar=false;
+    clock_t last_move_time = 0;
+
 };
 
 
@@ -39,16 +42,29 @@ struct Timer {
 };
 
 struct Obstacle {
-    int x, y;      // Position of the obstacle
-    chtype symbol; // Symbol representing the obstacle
+    int x, y;
+    chtype symbol;
 };
 
-WINDOW* drawInterface();
-chtype getInput(WINDOW * win);
-void refreshBoard(WINDOW * win);
-void addAt(int y, int x, chtype ch);
+struct Config {
+    int height;
+    int width;
+    int lane_height;
+    int num_lanes;
+    int num_cars;
+    int num_obstacles;
+    chtype symbolFrog;
+    chtype symbolCar;
+    chtype symbolObstacle;
+};
+
+WINDOW* drawInterface(const Config& config);
+
 void frogMove(WINDOW* win, Frog& frog, chtype input);
 int frogGame(WINDOW * win);
+Config readConfig(const char *filename);
+void hopInCar(WINDOW* win, Frog& frog, chtype input, Car cars[], const Config& config);
+
 
 
 
