@@ -119,9 +119,9 @@ WINDOW* drawInterface(const Config& config) {
  refresh();
  box(window, 0, 0);
  wrefresh(window);
- mvprintw(1, 0, "Ivanytskyi");
- mvprintw(2, 1, " Dmytro");
- mvprintw(3, 1, "s201251");
+ mvprintw(1, 0, "Surname");
+ mvprintw(2, 1, " Name");
+ mvprintw(3, 1, "id");
   mvprintw(5, 1, "Status");
   mvprintw(6, 1, "Active");
  refresh();
