@@ -6,24 +6,17 @@
 #ifndef FUN_H
 #define FUN_H
 #include <ncurses.h>
-<<<<<<< HEAD
 #include <ctime>
-
-=======
 #include <unistd.h>
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
+
 
 
 struct Frog {
     int x;
     int y;
     chtype symbol;
-<<<<<<< HEAD
     bool inTheCar=false;
     clock_t last_move_time = 0;
-
-=======
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
 };
 
 
@@ -38,10 +31,7 @@ struct Car {
     bool on_field;
     int respawn_time;
     int type;
-<<<<<<< HEAD
     bool hasFrog=false;
-=======
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
 };
 
 
@@ -52,7 +42,6 @@ struct Timer {
 };
 
 struct Obstacle {
-<<<<<<< HEAD
     int x, y;
     chtype symbol;
 };
@@ -76,7 +65,6 @@ int frogGame(WINDOW * win);
 Config readConfig(const char *filename);
 void hopInCar(WINDOW* win, Frog& frog, chtype input, Car cars[], const Config& config);
 
-=======
     int x, y;      // Position of the obstacle
     chtype symbol; // Symbol representing the obstacle
 };
@@ -87,7 +75,6 @@ void refreshBoard(WINDOW * win);
 void addAt(int y, int x, chtype ch);
 void frogMove(WINDOW* win, Frog& frog, chtype input);
 int frogGame(WINDOW * win);
->>>>>>> eff9e6943bb542bca43cc4a272a95e52a3c4eb78
 
 
 
