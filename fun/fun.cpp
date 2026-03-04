@@ -11,9 +11,9 @@
  // Create the game window
  box(window, 0, 0);
  wrefresh(window);
- mvprintw(1, 0, "Ivanytskyi");
- mvprintw(2, 1, " Dmytro");
- mvprintw(3, 1, "s201251");
+ mvprintw(1, 0, "Name");
+ mvprintw(2, 1, " Surname");
+ mvprintw(3, 1, "student id");
 
 
  return window;
