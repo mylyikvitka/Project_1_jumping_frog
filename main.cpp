@@ -26,7 +26,7 @@ int main() {
     init_pair(5, COLOR_YELLOW, COLOR_BLACK);
     init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
     srand(static_cast<unsigned>(time(0)));
-    Config config = readConfig("/Users/miawwww/BasComp2425/Project_1_jumping_frog/game_config.txt");
+    Config config = readConfig("game_config.txt");
 
     bkgd(COLOR_PAIR(3));
     clear();
